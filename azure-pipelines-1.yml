@@ -50,7 +50,7 @@ stages:
         TargetFolder: $(Build.ArtifactStagingDirectory)
 
     - upload: $(Build.ArtifactStagingDirectory)
-      artifact: drop
+      artifact: warfile
 
 - stage: Deploy
   displayName: Deploy stage
@@ -72,4 +72,4 @@ stages:
               azureSubscription: $(azureSubscription)
               appType: webAppLinux
               appName: $(webAppName)
-              package: '$(Pipeline.Workspace)/drop/**/target/*.war'
+              package: '$(Pipeline.Workspace)/warfile/**/target/*.war'
