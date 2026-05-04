@@ -31,3 +31,11 @@ steps:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
     ArtifactName: 'warfile'
     publishLocation: 'Container'
+- task: AzureRmWebAppDeployment@5
+  inputs:
+    ConnectionType: 'AzureRM'
+    azureSubscription: 'Azure subscription 1 (6f6373fe-b7a1-4a65-b9b5-2ef633e1fcc9)'
+    appType: 'webAppLinux'
+    WebAppName: 'Ganesh'
+    packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.war'
+    DeploymentTypeLinux: 'oneDeploy'
