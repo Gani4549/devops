@@ -1,42 +1,11 @@
-# =====================================================
-# Maven Java Web App CI/CD Pipeline
-# Azure DevOps Modern Multi-Stage YAML Pipeline
-# =====================================================
-
 trigger:
 - master
 
-# =====================================================
-# Azure Repos Repository
-# =====================================================
-
-resources:
-  repositories:
-    - repository: CommonRepo
-      type: git
-      name: AzureDemoGanesh/AzureDemoGanesh
-
-# =====================================================
-# Variables
-# =====================================================
-
 variables:
-
-  # Azure Service Connection
   azureSubscription: 'ca8cbce7-1314-49cb-8f4e-db8b3db5a802'
-
-  # Azure Linux Web App Name
   webAppName: 'Ganesh'
-
-  # Azure DevOps Environment
   environmentName: 'Ganesh'
-
-  # Microsoft Hosted Agent
   vmImageName: 'ubuntu-latest'
-
-# =====================================================
-# STAGES
-# =====================================================
 
 stages:
 
@@ -49,64 +18,61 @@ stages:
 
   jobs:
 
-  - job: MavenPackageAndPublishArtifacts
-    displayName: Maven Package And Publish Artifacts
+  - job: BuildJob
+    displayName: Maven Build Job
 
     pool:
       vmImage: $(vmImageName)
 
     steps:
 
-    # Checkout Current Repository
+    # Checkout Current Repo Only
     - checkout: self
 
-    # Checkout Azure Repos Repository
-    - checkout: CommonRepo
-
-    # Display Repository Files
+    # Debug Files
     - script: |
-        echo "Current Working Directory"
+        echo "Source Directory"
         pwd
 
-        echo "Repository Files"
-        ls -R $(Build.SourcesDirectory)
+        echo "All Files"
+        ls -R
       displayName: Display Repository Files
 
-    # Maven Build
+    # Maven Package
     - task: Maven@4
       displayName: Maven Package
 
       inputs:
-        mavenPomFile: '$(Build.SourcesDirectory)/AzureDemoGanesh/pom.xml'
+        mavenPomFile: 'pom.xml'
         goals: 'clean package -DskipTests'
         publishJUnitResults: false
         javaHomeOption: 'JDKVersion'
         jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
 
-    # Display Target Folder
+    # Verify WAR File
     - script: |
-        echo "Target Folder Files"
-        ls -R $(Build.SourcesDirectory)/AzureDemoGanesh/target
-      displayName: Display Target Folder Files
+        echo "WAR Files"
+        find . -name "*.war"
+      displayName: Find WAR File
 
     # Copy WAR File
     - task: CopyFiles@2
-      displayName: Copy WAR File To Artifact Staging Directory
+      displayName: Copy WAR File
 
       inputs:
-        SourceFolder: '$(Build.SourcesDirectory)/AzureDemoGanesh/target'
-        Contents: '*.war'
+        SourceFolder: '$(System.DefaultWorkingDirectory)'
+        Contents: '**/*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-    # Display Artifact Files
+    # Verify Artifact Files
     - script: |
-        echo "Artifact Staging Directory Files"
+        echo "Artifact Files"
         ls -R $(Build.ArtifactStagingDirectory)
       displayName: Display Artifact Files
 
     # Publish Artifact
-    - upload: $(Build.ArtifactStagingDirectory)
+    - publish: $(Build.ArtifactStagingDirectory)
       artifact: warfile
 
 # =====================================================
@@ -120,10 +86,6 @@ stages:
   condition: succeeded()
 
   jobs:
-
-  # =====================================================
-  # DEPLOYMENT JOB
-  # =====================================================
 
   - deployment: DeployLinuxWebApp
     displayName: Deploy Linux Web App
@@ -139,17 +101,17 @@ stages:
 
           steps:
 
-          # Download Build Artifact
+          # Download Artifact
           - download: current
             artifact: warfile
 
-          # Display Downloaded Artifacts
+          # Verify Downloaded Artifact
           - script: |
-              echo "Pipeline Workspace Files"
+              echo "Downloaded Artifact Files"
               ls -R $(Pipeline.Workspace)
             displayName: Display Downloaded Artifacts
 
-          # Deploy WAR File To Azure Linux Web App
+          # Deploy WAR
           - task: AzureWebApp@1
             displayName: Deploy WAR To Azure Web App
 
@@ -157,37 +119,36 @@ stages:
               azureSubscription: $(azureSubscription)
               appType: webAppLinux
               appName: $(webAppName)
-              package: '$(Pipeline.Workspace)/warfile/*.war'
+              package: '$(Pipeline.Workspace)/warfile/**/*.war'
 
-  # =====================================================
-  # AUTOMATION TEST JOB
-  # =====================================================
+# =====================================================
+# AUTOMATION TEST STAGE
+# =====================================================
 
-  - job: AutomationTests
-    displayName: Run Automation Tests
+- stage: AutomationTests
+  displayName: Automation Test Stage
 
-    dependsOn: DeployLinuxWebApp
+  dependsOn: Deploy
+  condition: succeeded()
+
+  jobs:
+
+  - job: RunAutomationTests
+    displayName: Run Selenium Tests
 
     pool:
       vmImage: $(vmImageName)
 
     steps:
 
-    # Checkout Automation Repository
-    - checkout: CommonRepo
+    - checkout: self
 
-    # Display Repository Files
-    - script: |
-        echo "Automation Repository Files"
-        ls -R $(Build.SourcesDirectory)
-      displayName: Display Automation Repository Files
-
-    # Run Maven Selenium Tests
+    # Run Tests
     - task: Maven@4
-      displayName: Run Selenium Tests
+      displayName: Run Maven Tests
 
       inputs:
-        mavenPomFile: '$(Build.SourcesDirectory)/AzureDemoGanesh/pom.xml'
+        mavenPomFile: 'pom.xml'
         goals: 'clean test'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
@@ -195,7 +156,7 @@ stages:
         jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
 
-    # Publish Test Results
+    # Publish Results
     - task: PublishTestResults@2
       displayName: Publish Test Results
 
