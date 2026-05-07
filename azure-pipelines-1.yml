@@ -28,7 +28,7 @@ variables:
   # Azure Linux Web App Name
   webAppName: 'Ganesh'
 
-  # Environment Name
+  # Azure DevOps Environment
   environmentName: 'Ganesh'
 
   # Agent VM Image
@@ -57,13 +57,13 @@ stages:
 
     steps:
 
-    # Checkout Main Repository
+    # Checkout Current Repository
     - checkout: self
 
     # Checkout Azure Repos Repository
     - checkout: CommonRepo
 
-    # Display Repository Files
+    # Display Repository Structure
     - script: |
         echo "Current Working Directory"
         pwd
@@ -79,13 +79,18 @@ stages:
       inputs:
         mavenPomFile: '$(Build.SourcesDirectory)/AzureDemoGanesh/pom.xml'
         goals: 'clean package -DskipTests'
-        publishJUnitResults: true
-        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        publishJUnitResults: false
         javaHomeOption: 'JDKVersion'
         jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
 
-    # Copy WAR File
+    # Display Target Folder
+    - script: |
+        echo "Target Folder Files"
+        ls -R $(Build.SourcesDirectory)/AzureDemoGanesh/target
+      displayName: Display Target Folder
+
+    # Copy WAR File to Artifact Staging Directory
     - task: CopyFiles@2
       displayName: Copy WAR File to Artifact Staging Directory
 
@@ -93,6 +98,12 @@ stages:
         SourceFolder: '$(Build.SourcesDirectory)/AzureDemoGanesh'
         Contents: '**/target/*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+    # Display Artifact Staging Directory
+    - script: |
+        echo "Artifact Staging Directory Files"
+        ls -R $(Build.ArtifactStagingDirectory)
+      displayName: Display Artifact Files
 
     # Publish Build Artifact
     - upload: $(Build.ArtifactStagingDirectory)
@@ -128,9 +139,15 @@ stages:
 
           steps:
 
-          # Download Artifact
+          # Download Build Artifact
           - download: current
             artifact: warfile
+
+          # Display Downloaded Artifacts
+          - script: |
+              echo "Pipeline Workspace Files"
+              ls -R $(Pipeline.Workspace)
+            displayName: Display Downloaded Artifacts
 
           # Deploy WAR to Azure Linux Web App
           - task: AzureWebApp@1
@@ -140,7 +157,7 @@ stages:
               azureSubscription: $(azureSubscription)
               appType: webAppLinux
               appName: $(webAppName)
-              package: '$(Pipeline.Workspace)/warfile/**/*.war'
+              package: '$(Pipeline.Workspace)/warfile/*.war'
 
   # =====================================================
   # AUTOMATION TEST JOB
@@ -159,13 +176,13 @@ stages:
     # Checkout Automation Repository
     - checkout: CommonRepo
 
-    # Display Files
+    # Display Automation Repository Files
     - script: |
         echo "Automation Repository Files"
         ls -R $(Build.SourcesDirectory)
       displayName: Display Automation Repository Files
 
-    # Run Maven Selenium Tests
+    # Run Selenium / Maven Tests
     - task: Maven@4
       displayName: Run Selenium Tests
 
