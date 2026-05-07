@@ -1,18 +1,24 @@
-# Maven package Java project Web App to Linux on Azure
-# Modern Multi-Stage Azure DevOps Pipeline
+# =====================================================
+# Maven Java Web App CI/CD Pipeline
+# Azure DevOps Modern Multi-Stage YAML Pipeline
+# =====================================================
 
 trigger:
 - master
 
-# =========================
-# AZURE REPOS ARTIFACT
-# =========================
+# =====================================================
+# Azure Repos Repository
+# =====================================================
 
 resources:
   repositories:
     - repository: CommonRepo
       type: git
       name: AzureDemoGanesh/AzureDemoGanesh
+
+# =====================================================
+# Variables
+# =====================================================
 
 variables:
 
@@ -28,11 +34,15 @@ variables:
   # VM Image
   vmImageName: 'ubuntu-latest'
 
-# =========================
-# BUILD STAGE
-# =========================
+# =====================================================
+# STAGES
+# =====================================================
 
 stages:
+
+# =====================================================
+# BUILD STAGE
+# =====================================================
 
 - stage: Build
   displayName: Build Stage
@@ -47,52 +57,50 @@ stages:
 
     steps:
 
-    # Main Repository Checkout
+    # Checkout Main Repository
     - checkout: self
 
-    # Azure Repos Repository Checkout
+    # Checkout Azure Repos Repository
     - checkout: CommonRepo
 
-    # Display Both Repository Files
+    # Display Repository Files
     - script: |
         echo "Main Repository Files"
         ls
 
-        echo "Azure Repos Artifact Files"
+        echo "Automation Repository Files"
         ls $(Build.SourcesDirectory)/CommonRepo
-      displayName: 'Display Repository Files'
+      displayName: Display Repository Files
 
     # Maven Build
     - task: Maven@4
-      displayName: 'Maven Package'
+      displayName: Maven Package
 
       inputs:
         mavenPomFile: 'pom.xml'
-        mavenOptions: '-Xmx3072m'
+        goals: 'clean package'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
         javaHomeOption: 'JDKVersion'
         jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
-        publishJUnitResults: true
-        testResultsFiles: '**/surefire-reports/TEST-*.xml'
-        goals: 'clean package'
 
-    # Copy WAR file to Artifact Staging Directory
+    # Copy WAR File
     - task: CopyFiles@2
-      displayName: 'Copy WAR File to Artifact Staging Directory'
+      displayName: Copy WAR File to Artifact Staging Directory
 
       inputs:
         SourceFolder: '$(System.DefaultWorkingDirectory)'
         Contents: '**/target/*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-    # Publish Build Artifact
+    # Publish Artifact
     - upload: $(Build.ArtifactStagingDirectory)
       artifact: warfile
 
-
-# =========================
+# =====================================================
 # DEPLOY STAGE
-# =========================
+# =====================================================
 
 - stage: Deploy
   displayName: Deploy Stage
@@ -102,7 +110,10 @@ stages:
 
   jobs:
 
-  # Deployment Job
+  # =====================================================
+  # DEPLOYMENT JOB
+  # =====================================================
+
   - deployment: DeployLinuxWebApp
     displayName: Deploy Linux Web App
 
@@ -121,9 +132,9 @@ stages:
           - download: current
             artifact: warfile
 
-          # Deploy to Azure Linux Web App
+          # Deploy WAR File to Azure Linux Web App
           - task: AzureWebApp@1
-            displayName: 'Deploy WAR to Azure Web App'
+            displayName: Deploy WAR to Azure Web App
 
             inputs:
               azureSubscription: $(azureSubscription)
@@ -131,13 +142,12 @@ stages:
               appName: $(webAppName)
               package: '$(Pipeline.Workspace)/warfile/**/*.war'
 
-
-  # =========================
-  # EMPTY JOB
-  # =========================
+  # =====================================================
+  # AUTOMATION TEST JOB
+  # =====================================================
 
   - job: AutomationTests
-    displayName: Empty Automation Job
+    displayName: Run Automation Tests
 
     dependsOn: DeployLinuxWebApp
 
@@ -146,4 +156,27 @@ stages:
 
     steps:
 
-    - checkout: none
+    # Checkout Automation Repository
+    - checkout: CommonRepo
+
+    # Run Selenium / Maven Automation Tests
+    - task: Maven@4
+      displayName: Run Selenium Tests
+
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'clean test'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.8'
+        jdkArchitectureOption: 'x64'
+
+    # Publish Test Results
+    - task: PublishTestResults@2
+      displayName: Publish Test Results
+
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        failTaskOnFailedTests: true
