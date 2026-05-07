@@ -1,75 +1,149 @@
 # Maven package Java project Web App to Linux on Azure
-# Build your Java project and deploy it to Azure as a Linux web app
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+# Modern Multi-Stage Azure DevOps Pipeline
 
 trigger:
 - master
 
+# =========================
+# AZURE REPOS ARTIFACT
+# =========================
+
+resources:
+  repositories:
+    - repository: CommonRepo
+      type: git
+      name: AzureDemoGanesh/AzureDemoGanesh
+
 variables:
 
-  # Azure Resource Manager connection created during pipeline creation
+  # Azure Service Connection
   azureSubscription: 'ca8cbce7-1314-49cb-8f4e-db8b3db5a802'
 
-  # Web app name
+  # Azure Web App Name
   webAppName: 'Ganesh'
 
-  # Environment name
+  # Environment Name
   environmentName: 'Ganesh'
 
-  # Agent VM image name
+  # VM Image
   vmImageName: 'ubuntu-latest'
 
+# =========================
+# BUILD STAGE
+# =========================
+
 stages:
+
 - stage: Build
-  displayName: Build stage
+  displayName: Build Stage
+
   jobs:
+
   - job: MavenPackageAndPublishArtifacts
     displayName: Maven Package and Publish Artifacts
+
     pool:
       vmImage: $(vmImageName)
 
     steps:
+
+    # Main Repository Checkout
+    - checkout: self
+
+    # Azure Repos Repository Checkout
+    - checkout: CommonRepo
+
+    # Display Both Repository Files
+    - script: |
+        echo "Main Repository Files"
+        ls
+
+        echo "Azure Repos Artifact Files"
+        ls $(Build.SourcesDirectory)/CommonRepo
+      displayName: 'Display Repository Files'
+
+    # Maven Build
     - task: Maven@4
       displayName: 'Maven Package'
+
       inputs:
         mavenPomFile: 'pom.xml'
         mavenOptions: '-Xmx3072m'
         javaHomeOption: 'JDKVersion'
-        jdkVersionOption: '1.8' 
+        jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
         goals: 'clean package'
 
+    # Copy WAR file to Artifact Staging Directory
     - task: CopyFiles@2
-      displayName: 'Copy Files to artifact staging directory'
+      displayName: 'Copy WAR File to Artifact Staging Directory'
+
       inputs:
         SourceFolder: '$(System.DefaultWorkingDirectory)'
         Contents: '**/target/*.war'
-        TargetFolder: $(Build.ArtifactStagingDirectory)
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
+    # Publish Build Artifact
     - upload: $(Build.ArtifactStagingDirectory)
       artifact: warfile
 
+
+# =========================
+# DEPLOY STAGE
+# =========================
+
 - stage: Deploy
-  displayName: Deploy stage
+  displayName: Deploy Stage
+
   dependsOn: Build
   condition: succeeded()
+
   jobs:
+
+  # Deployment Job
   - deployment: DeployLinuxWebApp
     displayName: Deploy Linux Web App
+
     environment: $(environmentName)
+
     pool:
       vmImage: $(vmImageName)
+
     strategy:
       runOnce:
         deploy:
+
           steps:
+
+          # Download Artifact
+          - download: current
+            artifact: warfile
+
+          # Deploy to Azure Linux Web App
           - task: AzureWebApp@1
-            displayName: 'Azure Web App Deploy: Ganesh'
+            displayName: 'Deploy WAR to Azure Web App'
+
             inputs:
               azureSubscription: $(azureSubscription)
               appType: webAppLinux
               appName: $(webAppName)
-              package: '$(Pipeline.Workspace)/warfile/**/target/*.war'
+              package: '$(Pipeline.Workspace)/warfile/**/*.war'
+
+
+  # =========================
+  # EMPTY JOB
+  # =========================
+
+  - job: AutomationTests
+    displayName: Empty Automation Job
+
+    dependsOn: DeployLinuxWebApp
+
+    pool:
+      vmImage: $(vmImageName)
+
+    steps:
+
+    - checkout: none
