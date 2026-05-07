@@ -69,7 +69,7 @@ stages:
         ls
 
         echo "Automation Repository Files"
-        ls $(Build.SourcesDirectory)/CommonRepo
+        ls $(Build.SourcesDirectory)/AzureDemoGanesh
       displayName: Display Repository Files
 
     # Maven Build
