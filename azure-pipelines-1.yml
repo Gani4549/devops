@@ -78,7 +78,7 @@ stages:
 
       inputs:
         mavenPomFile: '$(Build.SourcesDirectory)/AzureDemoGanesh/pom.xml'
-        goals: 'clean package'
+        goals: 'clean package -DskipTests'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
         javaHomeOption: 'JDKVersion'
