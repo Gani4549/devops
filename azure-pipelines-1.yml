@@ -31,7 +31,7 @@ variables:
   # Azure DevOps Environment
   environmentName: 'Ganesh'
 
-  # Agent VM Image
+  # Microsoft Hosted Agent
   vmImageName: 'ubuntu-latest'
 
 # =====================================================
@@ -50,7 +50,7 @@ stages:
   jobs:
 
   - job: MavenPackageAndPublishArtifacts
-    displayName: Maven Package and Publish Artifacts
+    displayName: Maven Package And Publish Artifacts
 
     pool:
       vmImage: $(vmImageName)
@@ -63,12 +63,12 @@ stages:
     # Checkout Azure Repos Repository
     - checkout: CommonRepo
 
-    # Display Repository Structure
+    # Display Repository Files
     - script: |
         echo "Current Working Directory"
         pwd
 
-        echo "All Repository Files"
+        echo "Repository Files"
         ls -R $(Build.SourcesDirectory)
       displayName: Display Repository Files
 
@@ -88,24 +88,24 @@ stages:
     - script: |
         echo "Target Folder Files"
         ls -R $(Build.SourcesDirectory)/AzureDemoGanesh/target
-      displayName: Display Target Folder
+      displayName: Display Target Folder Files
 
-    # Copy WAR File to Artifact Staging Directory
+    # Copy WAR File
     - task: CopyFiles@2
-      displayName: Copy WAR File to Artifact Staging Directory
+      displayName: Copy WAR File To Artifact Staging Directory
 
       inputs:
-        SourceFolder: '$(Build.SourcesDirectory)/AzureDemoGanesh'
-        Contents: '**/target/*.war'
+        SourceFolder: '$(Build.SourcesDirectory)/AzureDemoGanesh/target'
+        Contents: '*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-    # Display Artifact Staging Directory
+    # Display Artifact Files
     - script: |
         echo "Artifact Staging Directory Files"
         ls -R $(Build.ArtifactStagingDirectory)
       displayName: Display Artifact Files
 
-    # Publish Build Artifact
+    # Publish Artifact
     - upload: $(Build.ArtifactStagingDirectory)
       artifact: warfile
 
@@ -149,9 +149,9 @@ stages:
               ls -R $(Pipeline.Workspace)
             displayName: Display Downloaded Artifacts
 
-          # Deploy WAR to Azure Linux Web App
+          # Deploy WAR File To Azure Linux Web App
           - task: AzureWebApp@1
-            displayName: Deploy WAR to Azure Web App
+            displayName: Deploy WAR To Azure Web App
 
             inputs:
               azureSubscription: $(azureSubscription)
@@ -176,13 +176,13 @@ stages:
     # Checkout Automation Repository
     - checkout: CommonRepo
 
-    # Display Automation Repository Files
+    # Display Repository Files
     - script: |
         echo "Automation Repository Files"
         ls -R $(Build.SourcesDirectory)
       displayName: Display Automation Repository Files
 
-    # Run Selenium / Maven Tests
+    # Run Maven Selenium Tests
     - task: Maven@4
       displayName: Run Selenium Tests
 
