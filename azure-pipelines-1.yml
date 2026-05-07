@@ -2,16 +2,37 @@ trigger:
 - master
 
 variables:
+
+  # =========================================
+  # QA / TEST ENVIRONMENT
+  # =========================================
+
   azureSubscription: 'ca8cbce7-1314-49cb-8f4e-db8b3db5a802'
   webAppName: 'Ganesh'
   environmentName: 'Ganesh'
+
+  # =========================================
+  # PRODUCTION ENVIRONMENT
+  # =========================================
+
+  productionWebAppName: 'prodganesh'
+  productionEnvironmentName: 'Production'
+
+  # =========================================
+  # AGENT
+  # =========================================
+
   vmImageName: 'ubuntu-latest'
+
+# =========================================
+# STAGES
+# =========================================
 
 stages:
 
-# =====================================================
+# =========================================
 # BUILD STAGE
-# =====================================================
+# =========================================
 
 - stage: Build
   displayName: Build Stage
@@ -26,19 +47,19 @@ stages:
 
     steps:
 
-    # Checkout Current Repo Only
+    # Checkout Repository
     - checkout: self
 
-    # Debug Files
+    # Display Repository Files
     - script: |
         echo "Source Directory"
         pwd
 
-        echo "All Files"
+        echo "All Repository Files"
         ls -R
       displayName: Display Repository Files
 
-    # Maven Package
+    # Maven Build
     - task: Maven@4
       displayName: Maven Package
 
@@ -65,7 +86,7 @@ stages:
         Contents: '**/*.war'
         TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-    # Verify Artifact Files
+    # Display Artifact Files
     - script: |
         echo "Artifact Files"
         ls -R $(Build.ArtifactStagingDirectory)
@@ -75,20 +96,20 @@ stages:
     - publish: $(Build.ArtifactStagingDirectory)
       artifact: warfile
 
-# =====================================================
-# DEPLOY STAGE
-# =====================================================
+# =========================================
+# QA DEPLOYMENT STAGE
+# =========================================
 
 - stage: Deploy
-  displayName: Deploy Stage
+  displayName: QA Deployment Stage
 
   dependsOn: Build
   condition: succeeded()
 
   jobs:
 
-  - deployment: DeployLinuxWebApp
-    displayName: Deploy Linux Web App
+  - deployment: DeployToQA
+    displayName: Deploy To QA Server
 
     environment: $(environmentName)
 
@@ -105,15 +126,15 @@ stages:
           - download: current
             artifact: warfile
 
-          # Verify Downloaded Artifact
+          # Display Downloaded Artifact
           - script: |
               echo "Downloaded Artifact Files"
               ls -R $(Pipeline.Workspace)
             displayName: Display Downloaded Artifacts
 
-          # Deploy WAR
+          # Deploy To QA Azure Web App
           - task: AzureWebApp@1
-            displayName: Deploy WAR To Azure Web App
+            displayName: Deploy WAR To QA Web App
 
             inputs:
               azureSubscription: $(azureSubscription)
@@ -121,9 +142,9 @@ stages:
               appName: $(webAppName)
               package: '$(Pipeline.Workspace)/warfile/**/*.war'
 
-# =====================================================
+# =========================================
 # AUTOMATION TEST STAGE
-# =====================================================
+# =========================================
 
 - stage: AutomationTests
   displayName: Automation Test Stage
@@ -141,9 +162,10 @@ stages:
 
     steps:
 
+    # Checkout Repository
     - checkout: self
 
-    # Run Tests
+    # Run Maven Tests
     - task: Maven@4
       displayName: Run Maven Tests
 
@@ -156,7 +178,7 @@ stages:
         jdkVersionOption: '1.8'
         jdkArchitectureOption: 'x64'
 
-    # Publish Results
+    # Publish Test Results
     - task: PublishTestResults@2
       displayName: Publish Test Results
 
@@ -164,3 +186,51 @@ stages:
         testResultsFormat: 'JUnit'
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
         failTaskOnFailedTests: true
+
+# =========================================
+# PRODUCTION DEPLOYMENT STAGE
+# =========================================
+
+- stage: Production
+  displayName: Production Deployment Stage
+
+  dependsOn: AutomationTests
+  condition: succeeded()
+
+  jobs:
+
+  - deployment: DeployToProduction
+    displayName: Deploy To Production Server
+
+    environment: $(productionEnvironmentName)
+
+    pool:
+      vmImage: $(vmImageName)
+
+    strategy:
+      runOnce:
+        deploy:
+
+          steps:
+
+          # Download Artifact
+          - download: current
+            artifact: warfile
+
+          # Display Production Artifact
+          - script: |
+              echo "Production Artifact Files"
+              ls -R $(Pipeline.Workspace)
+            displayName: Display Production Files
+
+          # Deploy To Production Azure Web App
+          - task: AzureRmWebAppDeployment@5
+            displayName: Deploy WAR To Production Web App
+
+            inputs:
+              ConnectionType: 'AzureRM'
+              azureSubscription: 'Azure subscription 1 (6f6373fe-b7a1-4a65-b9b5-2ef633e1fcc9)'
+              appType: 'webAppLinux'
+              WebAppName: 'prodganesh'
+              packageForLinux: '$(Pipeline.Workspace)/warfile/**/*.war'
+              DeploymentTypeLinux: 'oneDeploy'
